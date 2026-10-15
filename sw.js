@@ -1,5 +1,5 @@
 // Nombre de la caché
-const CACHE_NAME = 'sorteo-app-v1.0.6';
+const CACHE_NAME = 'sorteo-app-v1.1.0';
 const STATIC_CACHE = 'static-v5';
 const DYNAMIC_CACHE = 'dynamic-v5';
 
