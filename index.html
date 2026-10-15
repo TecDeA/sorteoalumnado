@@ -10,10 +10,17 @@
     
     <!-- PWA Configuration -->
     <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/png" href="icons/icon-192.png">
-    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png">
+    <link rel="shortcut icon" href="icons/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Sorteo App">
     
     <title>Sorteo Aleatorio de Nombres</title>
     
@@ -107,6 +114,60 @@
             background-image: linear-gradient(to right, var(--primary-color), var(--secondary-color));
             position: relative;
             overflow: hidden;
+        }
+
+        /* Chip dinámico de versión (lee la versión desde sw.js) */
+        .app-version-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.32);
+            color: #fff;
+            padding: 5px 14px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 500;
+            letter-spacing: 0.2px;
+            transition: background 0.3s ease, border-color 0.3s ease, transform 0.2s ease;
+        }
+
+        .app-version-chip:hover {
+            background: rgba(255, 255, 255, 0.28);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .app-version-chip .version-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4ade80;
+            box-shadow: 0 0 8px rgba(74, 222, 128, 0.9);
+            animation: version-pulse 2s ease-in-out infinite;
+            flex-shrink: 0;
+        }
+
+        .app-version-chip.is-loading .version-dot {
+            background: #fbbf24;
+            box-shadow: 0 0 8px rgba(251, 191, 36, 0.9);
+        }
+
+        .app-version-chip.is-error .version-dot {
+            background: #f87171;
+            box-shadow: 0 0 8px rgba(248, 113, 113, 0.9);
+            animation: none;
+        }
+
+        .app-version-chip .version-text {
+            line-height: 1;
+        }
+
+        @keyframes version-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.45; transform: scale(0.85); }
         }
 
         .winner-badge {
@@ -404,6 +465,13 @@
             </div>
             <h1 class="h2 fw-bold position-relative"><i class="fa-solid fa-shuffle me-2"></i>Generador Aleatorio de Sorteos</h1>
             <p class="mb-0 opacity-75 position-relative">Introduce nombres y genera un orden al azar</p>
+            <!-- Chip dinámico de versión (obtenida desde sw.js) -->
+            <div class="position-relative mt-2">
+                <span id="appVersionChip" class="app-version-chip is-loading" title="Versión obtenida automáticamente desde sw.js">
+                    <span class="version-dot" aria-hidden="true"></span>
+                    <span class="version-text">Cargando versión…</span>
+                </span>
+            </div>
             <div class="position-absolute top-0 end-0 mt-2 me-2">
                 <span id="auth-status" class="badge bg-dark bg-opacity-50 px-3 py-2 fw-normal">Modo Local</span>
             </div>
@@ -2222,11 +2290,56 @@
             }
         }
 
+        // ============================================================
+        // Chip dinámico de versión: lee la versión desde sw.js
+        // ============================================================
+        async function loadAppVersionFromSW() {
+            const chip = document.getElementById('appVersionChip');
+            if (!chip) return;
+            const textEl = chip.querySelector('.version-text');
+            try {
+                // cache: 'no-store' para evitar leer una versión antigua cacheada
+                const res = await fetch('sw.js', { cache: 'no-store' });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const source = await res.text();
+
+                // Extraer versión de CACHE_NAME = 'sorteo-app-vX.Y.Z'
+                let version = null;
+                const cacheMatch = source.match(/CACHE_NAME\s*=\s*['"][^'"]*?v(\d+(?:\.\d+){1,3})['"]/i);
+                if (cacheMatch) {
+                    version = cacheMatch[1];
+                } else {
+                    // Fallback: cualquier APP_VERSION = 'X.Y.Z' que aparezca en sw.js
+                    const fallback = source.match(/APP_VERSION\s*=\s*['"]([\d.]+)['"]/i);
+                    if (fallback) version = fallback[1];
+                }
+
+                if (version) {
+                    chip.classList.remove('is-loading', 'is-error');
+                    textEl.textContent = 'v' + version;
+                    chip.setAttribute('title', 'Versión de la app: ' + version);
+                    // Publicar evento por si otras partes de la app quieren usarlo
+                    window.dispatchEvent(new CustomEvent('appversionloaded', { detail: { version } }));
+                } else {
+                    chip.classList.remove('is-loading');
+                    chip.classList.add('is-error');
+                    textEl.textContent = 'Versión no disponible';
+                    chip.setAttribute('title', 'No se pudo determinar la versión desde sw.js');
+                }
+            } catch (err) {
+                console.warn('[AppVersion] No se pudo leer sw.js:', err);
+                chip.classList.remove('is-loading');
+                chip.classList.add('is-error');
+                textEl.textContent = 'Versión no disponible';
+                chip.setAttribute('title', 'No se pudo cargar sw.js: ' + err.message);
+            }
+        }
+
         // Registrar Service Worker
         function registerServiceWorker() {
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('service-worker.js')
+                    navigator.serviceWorker.register('sw.js')
                         .then(registration => {
                             console.log('ServiceWorker registrado con éxito:', registration.scope);
                         })
@@ -2252,6 +2365,9 @@
             
             // Registrar Service Worker
             registerServiceWorker();
+            
+            // Cargar la versión de la app desde sw.js (chip dinámico)
+            loadAppVersionFromSW();
             
             // Evento para instalación de PWA
             window.addEventListener('beforeinstallprompt', (e) => {
