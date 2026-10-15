@@ -2,12 +2,13 @@
   "name": "Sorteos Aleatorios",
   "short_name": "Sorteos Aleatorios",
   "description": "Aplicación para realizar sorteos aleatorios de nombres. Ordena alfabéticamente y elimina ganadores automáticamente.",
-  "start_url": "./index.html",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",  
   "display": "standalone",
   "background_color": "#4e54c8",
   "theme_color": "#4e54c8",
   "orientation": "portrait",
-  "scope": "./",
   "lang": "es",
   "icons": [
     {
@@ -61,8 +62,6 @@
       "type": "image/png"
     }
   ],
-  "start_url": "/",
-  "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#000000"
 }
